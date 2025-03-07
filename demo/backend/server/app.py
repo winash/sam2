@@ -29,10 +29,16 @@ from strawberry.flask.views import GraphQLView
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+# When using credentials mode with CORS, we need to specify the exact origins
+# We can't use '*' with Access-Control-Allow-Credentials: true
 cors = CORS(
     app, 
     supports_credentials=True,
-    resources={r"/*": {"origins": "*", "allow_headers": "*", "expose_headers": "*"}}
+    resources={r"/*": {
+        "origins": ["http://localhost:7262", "http://127.0.0.1:7262"], 
+        "allow_headers": "*", 
+        "expose_headers": "*"
+    }}
 )
 
 videos = preload_data()
@@ -44,7 +50,9 @@ inference_api = InferenceAPI()
 @app.route("/healthy")
 def healthy() -> Response:
     response = make_response("OK", 200)
-    response.headers['Access-Control-Allow-Origin'] = '*'
+    origin = request.headers.get('Origin', 'http://localhost:7262')
+    response.headers['Access-Control-Allow-Origin'] = origin
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
 
@@ -55,7 +63,10 @@ def send_gallery_video(path: str) -> Response:
             GALLERY_PATH,
             path,
         )
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        # Using specific origin instead of '*' to allow credentials
+        origin = request.headers.get('Origin', 'http://localhost:7262')
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
     except:
         raise ValueError("resource not found")
@@ -68,7 +79,9 @@ def send_poster_image(path: str) -> Response:
             POSTERS_PATH,
             path,
         )
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        origin = request.headers.get('Origin', 'http://localhost:7262')
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
     except:
         raise ValueError("resource not found")
@@ -81,7 +94,9 @@ def send_uploaded_video(path: str):
             UPLOADS_PATH,
             path,
         )
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        origin = request.headers.get('Origin', 'http://localhost:7262')
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
     except:
         raise ValueError("resource not found")
@@ -94,7 +109,9 @@ def send_replacement_image(path: str):
             REPLACEMENT_IMAGES_PATH,
             path,
         )
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        origin = request.headers.get('Origin', 'http://localhost:7262')
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
     except:
         raise ValueError("resource not found")
@@ -103,11 +120,14 @@ def send_replacement_image(path: str):
 # TOOD: Protect route with ToS permission check
 @app.route("/propagate_in_video", methods=["POST", "OPTIONS"])
 def propagate_in_video() -> Response:
+    origin = request.headers.get('Origin', 'http://localhost:7262')
+    
     if request.method == "OPTIONS":
         response = Response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Origin', origin)
         response.headers.add('Access-Control-Allow-Headers', '*')
         response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response
         
     data = request.json
@@ -119,7 +139,8 @@ def propagate_in_video() -> Response:
     boundary = "frame"
     frame = gen_track_with_mask_stream(boundary, **args)
     response = Response(frame, mimetype="multipart/x-savi-stream; boundary=" + boundary)
-    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Origin'] = origin
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
 
@@ -152,17 +173,20 @@ def gen_track_with_mask_stream(
 class MyGraphQLView(GraphQLView):
     def get_context(self, request: Request, response: Response) -> Any:
         # Add CORS headers to all GraphQL responses
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        origin = request.headers.get('Origin', 'http://localhost:7262')
+        response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Headers'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         return {"inference_api": inference_api}
 
 
 # Add a route handler specifically for OPTIONS requests to /graphql
 @app.route("/graphql", methods=["OPTIONS"])
 def graphql_options():
+    origin = request.headers.get('Origin', 'http://localhost:7262')
     response = Response()
-    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Origin', origin)
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
     response.headers.add('Access-Control-Allow-Credentials', 'true')
