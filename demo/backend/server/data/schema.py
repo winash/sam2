@@ -28,12 +28,18 @@ from data.data_types import (
     ClearPointsInVideoInput,
     CloseSession,
     CloseSessionInput,
+    ProcessTextPromptInput,
+    ProcessTextPromptResult,
     RemoveObjectInput,
+    ReplacementImage,
+    ReplacementImageList,
     RLEMask,
     RLEMaskForObject,
     RLEMaskListOnFrame,
+    SetReplacementImageInput,
     StartSession,
     StartSessionInput,
+    UploadReplacementImageResult,
     Video,
 )
 from data.loader import get_video
@@ -52,6 +58,9 @@ from inference.data_types import (
 from inference.predictor import InferenceAPI
 from strawberry import relay
 from strawberry.file_uploads import Upload
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @strawberry.type
