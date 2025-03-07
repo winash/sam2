@@ -23,6 +23,7 @@ uniform bool uFill; // use all emoji texture
 uniform sampler2D uMaskTexture0;
 uniform sampler2D uMaskTexture1;
 uniform sampler2D uMaskTexture2;
+uniform bool uUseCustomImage; // Added to support custom images
 
 uniform vec4 bbox0;
 uniform vec4 bbox1;
@@ -34,10 +35,19 @@ vec2 calculateAdjustedTexCoord(vec2 vTexCoord, vec4 bbox, float aspectRatio, out
   vec2 center = (bbox.xy + bbox.zw) * 0.5f;
   float radiusX = abs(bbox.z - bbox.x);
   float radiusY = radiusX / aspectRatio;
-  float scale = 1.25f;
+  
+  // For custom images, we use a different scale to better fit the contents
+  float scale = uUseCustomImage ? 1.0f : 1.25f;
+  
   radiusX *= scale;
   radiusY *= scale;
   vec2 adjustedTexCoord = (vTexCoord - center) / vec2(radiusX, radiusY) + vec2(0.5f);
+  
+  // For custom images, we want to ensure the coordinates are within bounds
+  if (uUseCustomImage) {
+    adjustedTexCoord = clamp(adjustedTexCoord, 0.0f, 1.0f);
+  }
+  
   distanceFromCenter = length((vTexCoord - center) / vec2(radiusX * 0.5f, radiusY * 0.5f));
   return adjustedTexCoord;
 }
@@ -50,6 +60,9 @@ void main() {
   vec4 bgFill = vec4(1.0f, 0.0f, 0.0f, 1.0f);
 
   vec4 emojiColor;
+  
+  // For custom images, we'll handle edge cases differently
+  float distanceThreshold = uUseCustomImage ? 0.95f : 0.85f;
 
   if(uNumMasks > 0) {
     float maskValue0 = texture(uMaskTexture0, vec2(vTexCoord.y, vTexCoord.x)).r;
@@ -58,7 +71,8 @@ void main() {
 
     if(maskValue0 > 0.0f) {
       emojiColor = texture(uEmojiTexture, adjustedTexCoord);
-      if(distanceFromCenter > 0.85f && !uFill) {
+      // For custom images, we want to preserve the original alpha
+      if(distanceFromCenter > distanceThreshold && !uFill && !uUseCustomImage) {
         emojiColor = bgFill;
       }
     }
@@ -68,6 +82,7 @@ void main() {
     
     totalMaskValue += maskValue0;
   }
+  
   if(uNumMasks > 1) {
     float maskValue1 = texture(uMaskTexture1, vec2(vTexCoord.y, vTexCoord.x)).r;
     float distanceFromCenter;
@@ -75,7 +90,7 @@ void main() {
 
     if(maskValue1 > 0.0f) {
       emojiColor = texture(uEmojiTexture, adjustedTexCoord);
-      if(distanceFromCenter > 0.85f && !uFill) {
+      if(distanceFromCenter > distanceThreshold && !uFill && !uUseCustomImage) {
         emojiColor = bgFill;
       }
     }
@@ -85,13 +100,14 @@ void main() {
       
     totalMaskValue += maskValue1;
   }
+  
   if(uNumMasks > 2) {
     float maskValue2 = texture(uMaskTexture2, vec2(vTexCoord.y, vTexCoord.x)).r;
     float distanceFromCenter;
     vec2 adjustedTexCoord = calculateAdjustedTexCoord(vTexCoord, bbox2, aspectRatio, distanceFromCenter);
     if(maskValue2 > 0.0f) {
       emojiColor = texture(uEmojiTexture, adjustedTexCoord);
-      if(distanceFromCenter > 0.85f && !uFill) {
+      if(distanceFromCenter > distanceThreshold && !uFill && !uUseCustomImage) {
         emojiColor = bgFill;
       }
     }
@@ -102,10 +118,12 @@ void main() {
     totalMaskValue += maskValue2;
   }
 
+  // For custom images, we don't need special blending
   if(totalMaskValue > 0.0f) {
     finalColor = emojiColor;
   } else {
     finalColor = uFill ? emojiColor : vec4(0.0f);
   }
+  
   fragColor = finalColor;
 }

@@ -33,17 +33,77 @@ export default class ReplaceGLEffect extends BaseGLEffect {
   private _numMasks: number = 0;
   private _numMasksUniformLocation: WebGLUniformLocation | null = null;
   private _bitmap: ImageBitmap[] = [];
+  private _customImage: ImageBitmap | null = null;
   private _extraTextureUnit: number = 1;
   private _extraTexture: WebGLTexture | null = null;
   private _fillBg: number = 0;
   private _fillBgLocation: WebGLUniformLocation | null = null;
   private _masksTextureUnitStart: number = 2;
   private _maskTextures: WebGLTexture[] = [];
+  private _useCustomImage: boolean = false;
+  private _useCustomImageLocation: WebGLUniformLocation | null = null;
 
   constructor() {
     super(6);
     this.vertexShaderSource = vertexShaderSource;
     this.fragmentShaderSource = fragmentShaderSource;
+  }
+
+  /**
+   * Set a custom image to use for replacement
+   */
+  public async setCustomImage(imageUrl: string): Promise<void> {
+    try {
+      // Load the image
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      this._customImage = await createImageBitmap(blob);
+      this._useCustomImage = true;
+      
+      // If we have a GL context, update the texture
+      if (this._gl && this._extraTexture) {
+        this._gl.activeTexture(this._gl.TEXTURE0 + this._extraTextureUnit);
+        this._gl.bindTexture(this._gl.TEXTURE_2D, this._extraTexture);
+        
+        this._gl.texImage2D(
+          this._gl.TEXTURE_2D,
+          0,
+          this._gl.RGBA,
+          this._customImage.width,
+          this._customImage.height,
+          0,
+          this._gl.RGBA,
+          this._gl.UNSIGNED_BYTE,
+          this._customImage,
+        );
+        
+        this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MIN_FILTER, this._gl.LINEAR);
+        this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_MAG_FILTER, this._gl.LINEAR);
+        this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_S, this._gl.CLAMP_TO_EDGE);
+        this._gl.texParameteri(this._gl.TEXTURE_2D, this._gl.TEXTURE_WRAP_T, this._gl.CLAMP_TO_EDGE);
+        
+        // Update uniform if it exists
+        if (this._useCustomImageLocation) {
+          this._gl.uniform1i(this._useCustomImageLocation, 1);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading custom replacement image:', error);
+      this._useCustomImage = false;
+    }
+  }
+
+  /**
+   * Reset to use default icons instead of custom image
+   */
+  public resetToDefaultImages(): void {
+    this._useCustomImage = false;
+    this._customImage = null;
+    
+    // Update uniform if it exists
+    if (this._gl && this._useCustomImageLocation) {
+      this._gl.uniform1i(this._useCustomImageLocation, 0);
+    }
   }
 
   protected async setupUniforms(
@@ -59,6 +119,10 @@ export default class ReplaceGLEffect extends BaseGLEffect {
 
     this._fillBgLocation = gl.getUniformLocation(program, 'uFill');
     gl.uniform1i(this._fillBgLocation, this._fillBg);
+    
+    // Add uniform for custom image toggle
+    this._useCustomImageLocation = gl.getUniformLocation(program, 'uUseCustomImage');
+    gl.uniform1i(this._useCustomImageLocation, this._useCustomImage ? 1 : 0);
 
     gl.uniform1i(
       gl.getUniformLocation(program, 'uEmojiTexture'),
@@ -94,7 +158,7 @@ export default class ReplaceGLEffect extends BaseGLEffect {
 
     const iconIndex = Math.floor(this.variant / 2) % this._bitmap.length;
 
-    if (this._bitmap === null) {
+    if (!this._useCustomImage && this._bitmap === null) {
       return;
     }
 
@@ -105,11 +169,36 @@ export default class ReplaceGLEffect extends BaseGLEffect {
     gl.uniform1i(this._numMasksUniformLocation, context.masks.length);
     gl.uniform1i(this._fillBgLocation, this.variant % 2 === 0 ? 0 : 1);
 
-    // Bind the extra texture/emoji to texture unit 1
-    if (this._bitmap.length) {
-      gl.activeTexture(gl.TEXTURE0 + this._extraTextureUnit);
-      gl.bindTexture(gl.TEXTURE_2D, this._extraTexture);
+    // Update the custom image flag
+    if (this._useCustomImageLocation) {
+      gl.uniform1i(this._useCustomImageLocation, this._useCustomImage ? 1 : 0);
+    }
 
+    // Bind the texture to texture unit 1
+    gl.activeTexture(gl.TEXTURE0 + this._extraTextureUnit);
+    gl.bindTexture(gl.TEXTURE_2D, this._extraTexture);
+
+    if (this._useCustomImage && this._customImage) {
+      // Use the custom image if available
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGBA,
+        this._customImage.width,
+        this._customImage.height,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        this._customImage,
+      );
+
+      // Use linear filtering for smoother scaling of photos
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    } else if (this._bitmap.length) {
+      // Fall back to default icons
       gl.texImage2D(
         gl.TEXTURE_2D,
         0,
@@ -122,6 +211,7 @@ export default class ReplaceGLEffect extends BaseGLEffect {
         this._bitmap[iconIndex],
       );
 
+      // Use nearest filtering for crisp icon edges
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);

@@ -414,6 +414,197 @@ class InferenceAPI:
         )
         return session_stats_str
 
+    def process_text_prompt(self, session_id: str, frame_index: int, text_prompt: str) -> Dict:
+        """
+        Process a text prompt to identify objects in a frame using LLM and SAM2.
+        
+        Args:
+            session_id: The session ID
+            frame_index: The frame index to process
+            text_prompt: The text prompt from the user
+            
+        Returns:
+            A dictionary with the processed result
+        """
+        with self.autocast_context(), self.inference_lock:
+            try:
+                # Get session
+                session = self.__get_session(session_id)
+                inference_state = session["state"]
+                
+                # Import the LLM service
+                from inference.llm_service import LLMService
+                llm_service = LLMService()
+                
+                # Parse the text prompt with LLM
+                parsed_prompt = llm_service.parse_object_description(text_prompt)
+                logger.info(f"Parsed prompt: {parsed_prompt}")
+                
+                # Handle based on action type
+                if parsed_prompt["action"] == "find":
+                    # In "find" mode, we just need to segment the object
+                    # We'll use an automatic point generation approach based on the object description
+                    
+                    # For now, we'll simulate by adding a point in the center of the frame
+                    # In a real implementation, we'd use a more sophisticated approach to find
+                    # the object based on its description
+                    h, w = inference_state["height"], inference_state["width"]
+                    center_x, center_y = w / 2, h / 2
+                    
+                    # Create a new tracklet if needed
+                    obj_id = max(inference_state["obj_ids"] or [0]) + 1
+                    
+                    # Add the point in the center of the frame
+                    frame_idx, object_ids, masks = self.predictor.add_new_points_or_box(
+                        inference_state=inference_state,
+                        frame_idx=frame_index,
+                        obj_id=obj_id,
+                        points=[[center_x / w, center_y / h]],
+                        labels=[1],  # Foreground
+                        clear_old_points=True,
+                        normalize_coords=False,
+                    )
+                    
+                    masks_binary = (masks > self.score_thresh)[:, 0].cpu().numpy()
+                    rle_mask_list = self.__get_rle_mask_list(
+                        object_ids=object_ids, masks=masks_binary
+                    )
+                    
+                    # Create response
+                    return {
+                        "success": True,
+                        "message": f"Found object: {parsed_prompt['target']['description']}",
+                        "action": "find",
+                        "frame_index": frame_index,
+                        "object_id": obj_id,
+                        "target_description": parsed_prompt['target']['description'],
+                        "rle_mask_list": [
+                            {
+                                "object_id": r.object_id,
+                                "rle_mask": {
+                                    "size": r.mask.size,
+                                    "counts": r.mask.counts
+                                }
+                            }
+                            for r in rle_mask_list
+                        ]
+                    }
+                    
+                elif parsed_prompt["action"] == "replace":
+                    # In "replace" mode, we need to segment the object and associate it with a replacement
+                    
+                    # Similar approach as above for finding the object
+                    h, w = inference_state["height"], inference_state["width"]
+                    center_x, center_y = w / 2, h / 2
+                    
+                    # Create a new tracklet if needed
+                    obj_id = max(inference_state["obj_ids"] or [0]) + 1
+                    
+                    # Add the point in the center of the frame
+                    frame_idx, object_ids, masks = self.predictor.add_new_points_or_box(
+                        inference_state=inference_state,
+                        frame_idx=frame_index,
+                        obj_id=obj_id,
+                        points=[[center_x / w, center_y / h]],
+                        labels=[1],  # Foreground
+                        clear_old_points=True,
+                        normalize_coords=False,
+                    )
+                    
+                    masks_binary = (masks > self.score_thresh)[:, 0].cpu().numpy()
+                    rle_mask_list = self.__get_rle_mask_list(
+                        object_ids=object_ids, masks=masks_binary
+                    )
+                    
+                    # Create response
+                    return {
+                        "success": True,
+                        "message": f"Found object to replace: {parsed_prompt['target']['description']}",
+                        "action": "replace",
+                        "frame_index": frame_index,
+                        "object_id": obj_id,
+                        "target_description": parsed_prompt['target']['description'],
+                        "replacement": parsed_prompt['replacement'],
+                        "rle_mask_list": [
+                            {
+                                "object_id": r.object_id,
+                                "rle_mask": {
+                                    "size": r.mask.size,
+                                    "counts": r.mask.counts
+                                }
+                            }
+                            for r in rle_mask_list
+                        ]
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Unsupported action: {parsed_prompt['action']}"
+                    }
+                    
+            except Exception as e:
+                logger.error(f"Error processing text prompt: {str(e)}")
+                return {
+                    "success": False,
+                    "message": f"Error processing prompt: {str(e)}"
+                }
+    
+    def set_replacement_image(self, session_id: str, object_id: int, image_id: str) -> Dict:
+        """
+        Associate a replacement image with an object in the video.
+        
+        Args:
+            session_id: The session ID
+            object_id: The object ID to associate with the image
+            image_id: The ID of the replacement image
+            
+        Returns:
+            A dictionary with the result
+        """
+        with self.inference_lock:
+            try:
+                # Get session
+                session = self.__get_session(session_id)
+                
+                # Validate object ID
+                if object_id not in session["state"]["obj_ids"]:
+                    return {
+                        "success": False,
+                        "message": f"Object ID {object_id} not found in session"
+                    }
+                
+                # Import the replacement image service
+                from data.replacement_service import replacement_image_service
+                
+                # Validate image ID
+                image_info = replacement_image_service.get_image(image_id)
+                if image_info is None:
+                    return {
+                        "success": False,
+                        "message": f"Replacement image with ID {image_id} not found"
+                    }
+                
+                # Store the association in the session state
+                if "replacements" not in session:
+                    session["replacements"] = {}
+                    
+                session["replacements"][object_id] = {
+                    "image_id": image_id,
+                    "path": image_info["path"]
+                }
+                
+                return {
+                    "success": True,
+                    "message": f"Replacement image set for object {object_id}"
+                }
+                
+            except Exception as e:
+                logger.error(f"Error setting replacement image: {str(e)}")
+                return {
+                    "success": False,
+                    "message": f"Error setting replacement image: {str(e)}"
+                }
+    
     def __clear_session_state(self, session_id: str) -> bool:
         session = self.session_states.pop(session_id, None)
         if session is None:

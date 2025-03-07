@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Dict, Any
 
 import strawberry
 from app_conf import API_URL
@@ -152,3 +152,68 @@ class SessionExpiration:
     expiration_time: int
     max_expiration_time: int
     ttl: int
+
+
+# New types for LLM and image replacement functionality
+
+@strawberry.type
+class ReplacementImage:
+    """Type for replacement images that can be used to replace objects in video."""
+    id: str
+    path: str
+    width: int
+    height: int
+    
+    @strawberry.field
+    def url(self) -> str:
+        return f"{API_URL}/{self.path}"
+
+
+@strawberry.type
+class ProcessTextPromptResult:
+    """Result of processing a text prompt through the LLM."""
+    success: bool
+    message: str
+    frame_index: Optional[int] = None
+    rle_mask_list: Optional[List[RLEMaskForObject]] = None
+    object_id: Optional[int] = None
+    action: Optional[str] = None
+    target_description: Optional[str] = None
+    replacement: Optional[str] = None
+
+
+@strawberry.input
+class ProcessTextPromptInput:
+    """Input for processing a text prompt through the LLM."""
+    session_id: str
+    frame_index: int
+    text_prompt: str
+
+
+@strawberry.input
+class UploadReplacementImageInput:
+    """Input for uploading a replacement image."""
+    name: str = ""
+
+
+@strawberry.type
+class UploadReplacementImageResult:
+    """Result of uploading a replacement image."""
+    success: bool
+    image_id: Optional[str] = None
+    path: Optional[str] = None
+    message: str = ""
+
+
+@strawberry.input
+class SetReplacementImageInput:
+    """Input for setting a replacement image for an object."""
+    session_id: str
+    object_id: int
+    image_id: str
+
+
+@strawberry.type
+class ReplacementImageList:
+    """List of available replacement images."""
+    images: List[ReplacementImage]

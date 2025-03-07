@@ -20,7 +20,7 @@ logger.info(f"using model size {MODEL_SIZE}")
 FFMPEG_NUM_THREADS = int(os.getenv("FFMPEG_NUM_THREADS", "1"))
 
 # Path for all data used in API
-DATA_PATH = Path(os.getenv("DATA_PATH", "/data"))
+DATA_PATH = Path(os.getenv("DATA_PATH", "Users/winash/work/temp_data"))
 
 # Max duration an uploaded video can have in seconds. The default is 10
 # seconds.
@@ -48,8 +48,20 @@ POSTERS_PREFIX = "posters"
 # Path where all posters are stored
 POSTERS_PATH = DATA_PATH / POSTERS_PREFIX
 
+# Prefix for replacement images
+REPLACEMENT_IMAGES_PREFIX = "replacements"
+
+# Path where all replacement images are stored
+REPLACEMENT_IMAGES_PATH = DATA_PATH / REPLACEMENT_IMAGES_PREFIX
+
+# LLM Provider configuration
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")  # 'openai' or 'gemini'
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
 # Make sure any of those paths exist
 os.makedirs(DATA_PATH, exist_ok=True)
 os.makedirs(GALLERY_PATH, exist_ok=True)
 os.makedirs(UPLOADS_PATH, exist_ok=True)
 os.makedirs(POSTERS_PATH, exist_ok=True)
+os.makedirs(REPLACEMENT_IMAGES_PATH, exist_ok=True)

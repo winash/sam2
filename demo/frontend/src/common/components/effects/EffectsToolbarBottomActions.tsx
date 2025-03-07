@@ -17,6 +17,7 @@ import PrimaryCTAButton from '@/common/components/button/PrimaryCTAButton';
 import RestartSessionButton from '@/common/components/session/RestartSessionButton';
 import ToolbarBottomActionsWrapper from '@/common/components/toolbar/ToolbarBottomActionsWrapper';
 import {
+  LLM_TOOLBAR_INDEX,
   MORE_OPTIONS_TOOLBAR_INDEX,
   OBJECT_TOOLBAR_INDEX,
 } from '@/common/components/toolbar/ToolbarConfig';
@@ -27,8 +28,8 @@ type Props = {
 };
 
 export default function EffectsToolbarBottomActions({onTabChange}: Props) {
-  function handleSwitchToMoreOptionsTab() {
-    onTabChange(MORE_OPTIONS_TOOLBAR_INDEX);
+  function handleSwitchToLLMTab() {
+    onTabChange(LLM_TOOLBAR_INDEX);
   }
 
   return (
@@ -37,9 +38,9 @@ export default function EffectsToolbarBottomActions({onTabChange}: Props) {
         onRestartSession={() => onTabChange(OBJECT_TOOLBAR_INDEX)}
       />
       <PrimaryCTAButton
-        onClick={handleSwitchToMoreOptionsTab}
+        onClick={handleSwitchToLLMTab}
         endIcon={<ChevronRight />}>
-        Next
+        Use AI
       </PrimaryCTAButton>
     </ToolbarBottomActionsWrapper>
   );

@@ -13,6 +13,8 @@ from app_conf import (
     POSTERS_PREFIX,
     UPLOADS_PATH,
     UPLOADS_PREFIX,
+    REPLACEMENT_IMAGES_PATH,
+    REPLACEMENT_IMAGES_PREFIX,
 )
 from data.loader import preload_data
 from data.schema import schema
@@ -67,6 +69,17 @@ def send_uploaded_video(path: str):
     try:
         return send_from_directory(
             UPLOADS_PATH,
+            path,
+        )
+    except:
+        raise ValueError("resource not found")
+
+
+@app.route(f"/{REPLACEMENT_IMAGES_PREFIX}/<path:path>", methods=["GET"])
+def send_replacement_image(path: str):
+    try:
+        return send_from_directory(
+            REPLACEMENT_IMAGES_PATH,
             path,
         )
     except:

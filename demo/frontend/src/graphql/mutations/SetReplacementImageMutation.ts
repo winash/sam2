@@ -13,7 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export const OBJECT_TOOLBAR_INDEX = 0;
-export const EFFECT_TOOLBAR_INDEX = 1;
-export const LLM_TOOLBAR_INDEX = 2;
-export const MORE_OPTIONS_TOOLBAR_INDEX = 3;
+import {graphql} from 'relay-runtime';
+
+export const SetReplacementImageMutation = graphql`
+  mutation SetReplacementImageMutation($input: SetReplacementImageInput!) {
+    setReplacementImage(input: $input) {
+      success
+      message
+      objectId
+    }
+  }
+`;

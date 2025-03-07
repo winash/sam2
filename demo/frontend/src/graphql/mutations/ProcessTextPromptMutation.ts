@@ -13,7 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-export const OBJECT_TOOLBAR_INDEX = 0;
-export const EFFECT_TOOLBAR_INDEX = 1;
-export const LLM_TOOLBAR_INDEX = 2;
-export const MORE_OPTIONS_TOOLBAR_INDEX = 3;
+import {graphql} from 'relay-runtime';
+
+export const ProcessTextPromptMutation = graphql`
+  mutation ProcessTextPromptMutation($input: ProcessTextPromptInput!) {
+    processTextPrompt(input: $input) {
+      success
+      message
+      frameIndex
+      objectId
+      action
+      targetDescription
+      replacement
+      rleMaskList {
+        objectId
+        rleMask {
+          size
+          counts
+          order
+        }
+      }
+    }
+  }
+`;

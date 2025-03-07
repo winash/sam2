@@ -15,6 +15,7 @@
  */
 import ObjectsToolbar from '@/common/components/annotations/ObjectsToolbar';
 import EffectsToolbar from '@/common/components/effects/EffectsToolbar';
+import {LLMToolbar} from '@/common/components/toolbar/LLMToolbar';
 import MoreOptionsToolbar from '@/common/components/options/MoreOptionsToolbar';
 import type {CSSProperties} from 'react';
 
@@ -32,6 +33,7 @@ export default function DesktopToolbar({tabIndex, onTabChange}: Props) {
   const tabs = [
     <ObjectsToolbar key="objects" onTabChange={onTabChange} />,
     <EffectsToolbar key="effects" onTabChange={onTabChange} />,
+    <LLMToolbar key="llm" />,
     <MoreOptionsToolbar key="options" onTabChange={onTabChange} />,
   ];
 

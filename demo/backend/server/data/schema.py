@@ -86,6 +86,26 @@ class Query:
         """
         all_videos = get_videos()
         return all_videos.values()
+        
+    @strawberry.field
+    def replacement_images(self) -> ReplacementImageList:
+        """
+        Return all available replacement images.
+        """
+        from data.replacement_service import replacement_image_service
+        
+        images_data = replacement_image_service.get_all_images()
+        images = [
+            ReplacementImage(
+                id=img["id"],
+                path=img["path"],
+                width=img["width"],
+                height=img["height"]
+            )
+            for img in images_data
+        ]
+        
+        return ReplacementImageList(images=images)
 
 
 @strawberry.type
@@ -254,6 +274,111 @@ class Mutation:
         )
         response = inference_api.cancel_propagate_in_video(request)
         return CancelPropagateInVideo(success=response.success)
+        
+    @strawberry.mutation
+    def process_text_prompt(
+        self, input: ProcessTextPromptInput, info: strawberry.Info
+    ) -> ProcessTextPromptResult:
+        """
+        Process a text prompt through the LLM service to identify and segment objects.
+        """
+        inference_api: InferenceAPI = info.context["inference_api"]
+        
+        response = inference_api.process_text_prompt(
+            session_id=input.session_id,
+            frame_index=input.frame_index,
+            text_prompt=input.text_prompt
+        )
+        
+        if not response["success"]:
+            return ProcessTextPromptResult(
+                success=False,
+                message=response["message"]
+            )
+            
+        # Format the response
+        result = ProcessTextPromptResult(
+            success=True,
+            message=response["message"],
+            frame_index=response.get("frame_index"),
+            object_id=response.get("object_id"),
+            action=response.get("action"),
+            target_description=response.get("target_description"),
+            replacement=response.get("replacement")
+        )
+        
+        # Add mask list if available
+        if "rle_mask_list" in response and response["rle_mask_list"]:
+            result.rle_mask_list = [
+                RLEMaskForObject(
+                    object_id=r["object_id"],
+                    rle_mask=RLEMask(
+                        counts=r["rle_mask"]["counts"], 
+                        size=r["rle_mask"]["size"], 
+                        order="F"
+                    ),
+                )
+                for r in response["rle_mask_list"]
+            ]
+            
+        return result
+        
+    @strawberry.mutation
+    def upload_replacement_image(
+        self, file: Upload, name: str = ""
+    ) -> UploadReplacementImageResult:
+        """
+        Upload a replacement image to be used for object replacement.
+        """
+        from data.replacement_service import replacement_image_service
+        
+        try:
+            image_data = file.read()
+            success, message, image_info = replacement_image_service.save_image(
+                image_data=image_data,
+                name=name
+            )
+            
+            if not success or image_info is None:
+                return UploadReplacementImageResult(
+                    success=False,
+                    message=message
+                )
+                
+            return UploadReplacementImageResult(
+                success=True,
+                image_id=image_info["id"],
+                path=image_info["path"],
+                message=message
+            )
+            
+        except Exception as e:
+            logger.error(f"Error uploading replacement image: {str(e)}")
+            return UploadReplacementImageResult(
+                success=False,
+                message=f"Error uploading image: {str(e)}"
+            )
+            
+    @strawberry.mutation
+    def set_replacement_image(
+        self, input: SetReplacementImageInput, info: strawberry.Info
+    ) -> ProcessTextPromptResult:
+        """
+        Set a replacement image for an object in the video.
+        """
+        inference_api: InferenceAPI = info.context["inference_api"]
+        
+        response = inference_api.set_replacement_image(
+            session_id=input.session_id,
+            object_id=input.object_id,
+            image_id=input.image_id
+        )
+        
+        return ProcessTextPromptResult(
+            success=response["success"],
+            message=response["message"],
+            object_id=input.object_id if response["success"] else None
+        )
 
 
 def get_file_hash(video_path_or_file) -> str:
