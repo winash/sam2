@@ -69,6 +69,28 @@ export const fontWeight = stylex.defineVars({
   extrabold: 800,
 });
 
+export const font = {
+  family: 'Inter, ui-sans-serif, system-ui, sans-serif',
+  size: {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    base: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+    '2xl': '1.5rem',
+  },
+  weight: {
+    thin: '100',
+    extralight: '200',
+    light: '300',
+    normal: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
+    extrabold: '800',
+  },
+};
+
 export const color = stylex.defineVars({
   subtitle: 'rgb(107 114 128)',
   'gray-900': 'rgb(17 24 39)',

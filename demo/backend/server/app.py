@@ -29,7 +29,11 @@ from strawberry.flask.views import GraphQLView
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-cors = CORS(app, supports_credentials=True)
+cors = CORS(
+    app, 
+    supports_credentials=True,
+    resources={r"/*": {"origins": "*", "allow_headers": "*", "expose_headers": "*"}}
+)
 
 videos = preload_data()
 set_videos(videos)
@@ -39,16 +43,20 @@ inference_api = InferenceAPI()
 
 @app.route("/healthy")
 def healthy() -> Response:
-    return make_response("OK", 200)
+    response = make_response("OK", 200)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 
 @app.route(f"/{GALLERY_PREFIX}/<path:path>", methods=["GET"])
 def send_gallery_video(path: str) -> Response:
     try:
-        return send_from_directory(
+        response = send_from_directory(
             GALLERY_PATH,
             path,
         )
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
     except:
         raise ValueError("resource not found")
 
@@ -56,10 +64,12 @@ def send_gallery_video(path: str) -> Response:
 @app.route(f"/{POSTERS_PREFIX}/<path:path>", methods=["GET"])
 def send_poster_image(path: str) -> Response:
     try:
-        return send_from_directory(
+        response = send_from_directory(
             POSTERS_PATH,
             path,
         )
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
     except:
         raise ValueError("resource not found")
 
@@ -67,10 +77,12 @@ def send_poster_image(path: str) -> Response:
 @app.route(f"/{UPLOADS_PREFIX}/<path:path>", methods=["GET"])
 def send_uploaded_video(path: str):
     try:
-        return send_from_directory(
+        response = send_from_directory(
             UPLOADS_PATH,
             path,
         )
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
     except:
         raise ValueError("resource not found")
 
@@ -78,17 +90,26 @@ def send_uploaded_video(path: str):
 @app.route(f"/{REPLACEMENT_IMAGES_PREFIX}/<path:path>", methods=["GET"])
 def send_replacement_image(path: str):
     try:
-        return send_from_directory(
+        response = send_from_directory(
             REPLACEMENT_IMAGES_PATH,
             path,
         )
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        return response
     except:
         raise ValueError("resource not found")
 
 
 # TOOD: Protect route with ToS permission check
-@app.route("/propagate_in_video", methods=["POST"])
+@app.route("/propagate_in_video", methods=["POST", "OPTIONS"])
 def propagate_in_video() -> Response:
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', '*')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        return response
+        
     data = request.json
     args = {
         "session_id": data["session_id"],
@@ -97,7 +118,9 @@ def propagate_in_video() -> Response:
 
     boundary = "frame"
     frame = gen_track_with_mask_stream(boundary, **args)
-    return Response(frame, mimetype="multipart/x-savi-stream; boundary=" + boundary)
+    response = Response(frame, mimetype="multipart/x-savi-stream; boundary=" + boundary)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 
 def gen_track_with_mask_stream(
@@ -128,8 +151,22 @@ def gen_track_with_mask_stream(
 
 class MyGraphQLView(GraphQLView):
     def get_context(self, request: Request, response: Response) -> Any:
+        # Add CORS headers to all GraphQL responses
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
         return {"inference_api": inference_api}
 
+
+# Add a route handler specifically for OPTIONS requests to /graphql
+@app.route("/graphql", methods=["OPTIONS"])
+def graphql_options():
+    response = Response()
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 # Add GraphQL route to Flask app.
 app.add_url_rule(
